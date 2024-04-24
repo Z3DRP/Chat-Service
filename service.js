@@ -15,6 +15,12 @@ const openai = new OpenAI({
 
 service.listen(PORT, () => console.log('Service is running...'));
 
+service.post('/test/chat', async (req, response), next => {
+    try {
+        
+    }
+})
+
 service.get('/chat/previous', async (req, res, next) => {
     try {
         
