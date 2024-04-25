@@ -42,12 +42,25 @@ class clientDB {
         await this.client.connect();
         // return this.client.db(process.env.DB).collection(process.env.CHAT_COLLECTION as string);
         //testing with smpl_mflx
-        return this.client.db('sample_mflix').collection('comments');
+        return this.client.db('vba').collection('comments');
     }
 
     async getUserCollection() {
         await this.client.connect();
-        return this.client.db(process.env.DB).collection(USER_COLLECTION);
+        return this.client.db(process.env.DB).collection(process.env.USER_COLLECTION);
+    }
+
+    async testDB(db, collection, doc) {
+       const result = await this.client.db(database).collection(collection).insertOne(document);
+       return result;
+    }
+
+    async showDB() {
+        const databaseList = await this.client.db().admin().listDatabases();
+    }
+
+    async connect() {
+        await this.client.connect();
     }
 
     async close() {

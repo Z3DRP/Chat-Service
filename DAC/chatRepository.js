@@ -3,70 +3,258 @@ dotenv.config();
 const { MongoClient, ServerApiVersion} = require('mongodb');
 // const uri = process.env.ZON_URI;
 const clientDB = require('./clientDB');
-// const getClient = () => {
-//     return new MongoClient(uri, {
-//         serverApi: {
-//             version: ServerApiVersion.v1,
-//             strict: true,
-//             deprecationErrors: true,
-//         }
-//     });
-// }
+const { cli } = require('winston/lib/winston/config');
+const getClient = () => {
+    return new MongoClient(process.env.ZON_URI, {
+        serverApi: {
+            version: ServerApiVersion.v1,
+            strict: true,
+            deprecationErrors: true,
+        }
+    });
+}
 
 // create singleton of mongo client
-const getClient = () => new clientDB();
+// const getClient = () => new clientDB();
 
-const getDBCollection = () => {
+const tstMethod = (client, database, collection, document) => {
+    return new Promise(async (resolve, reject) => {
+        try {
+            await client.connect();
+            const result = await client.db(database).collection(collection).insertOne(document);
+            // const result = await client.testDB(database, collection, document);
+            resolve(result?.databases);
+        } catch (err) {
+            reject(new Error(err));
+        } finally {
+            client.close();
+        }
+    });
+}
+
+const testInsert = async (db, col, doc) => {
     const client = getClient();
-    return client.getChatCollection();
+    let response;
+    await tstMethod(client, db, col, doc)
+    .then((result) => {
+        response = {
+            success: result?.insertedId !== undefined,
+            insertedId: result?.insertedId ?? undefined,
+            msg: result?.insertedId === undefined ? `An error occurred while inserting document into ${db}` : `document ${result.insertedId} inserted successfully`
+        }
+    }).catch(err => {
+        throw new Error(err);
+    })
+    .finally(() => {
+        client.close();
+    });
+
+    return response;
+}
+
+const showDatabases = async () => {
+    const client = getClient();
+    return new Promise(async (resolve, reject) => {
+        try {
+            await client.connect();
+            const dbs = await client.db().admin().listDatabases();
+            // const dbs = await client.showDB();
+            resolve(dbs);
+        } catch(err) {
+            reject(new Error(err));
+        } finally {
+            client.close();
+        }
+    });
+
 }
 
 const insertChat = (client, chat) => {
     return new Promise(async (resolve, reject) => {
         try {
-            const chatCollection = getDBCollection();
-            const result = await chatCollection.insertOne(chat);
+            const collection = client.getChatCollection();
+            const result = await collection.insertOne(chat);
 
             if (result?.insertedId !== undefined) {
-                resolve(`chat ${result.insertedId} created successfully.`);
+                resolve(result);
             } else {
-                reject(new Error(`ERROR: insert unexpectedly failed.`));
+                reject(result);
             }
         } catch(err) {
-            reject(err);
+            reject(new Error(err));
         }
     });
 }
 
-async function run() {
-    // NOTE this works and is how to call code
-    const chats = getClient();
-    try {
-
-        // await client.connect();
-
-        // await listDatabases(client);
-        // const res = await client.db('sample_mflix').collection('comments').insertOne();
-        const collection = await chats.getChatCollection();
-        const res = await collection.insertOne({name: 'testing new', email: 'nonvalidemail@email.com', text: 'algweahe'});
-        console.log(`res ${JSON.stringify(res)}`);
-
-        console.log(`new listing created with id ${res.insertedId}`);
-
-    } catch(e) {
-        console.log(`[ERROR] ${e}`);
-    }
-     finally {
-        // await client.close();
-        await chats.close();
-    }
+const updateChat = (client, cid, message) => {
+    return new Promise(async (resolve, reject) => {
+        try {
+            const collection = client.getChatCollection();
+            const result = await collection.updateOne(
+                {_id: cid},
+                {$push: {messages: message}}
+            );
+            resolve(result);
+        } catch(err) {
+            reject(new Error(err));
+        }
+    });
 }
 
-async function listDatabases(client) {
-    const databaseList = await client.db().admin().listDatabases();
-
-    console.log('databases');
-    databaseList.databases.forEach(db => console.log(` - ${db.name}`));
+const findChatByCid = (client, cid) => {
+    return new Promise(async (resolve, reject) => {
+        try {
+            const collection = client.getChatCollection();
+            const result = await collection.findOne({_id: cid});
+            resolve(result);
+        } catch(err) {
+            reject(new Error(err));
+        }
+    })
 }
 
-run().catch(console.error);
+const findPreviousChats = async (client, usrId) => {
+    return new Promise(async (resolve, reject) => {
+        try {
+            const collection = client.getChatCollection();
+            const result = await collection.find({userId: usrId})
+            resolve(result);
+        } catch(err) {
+            reject(new Error(err));
+        }
+    });
+}
+
+const createChat = async (chat) => {
+    const chatsDB = getClient();
+    let response;
+    insertChat(chatsDB, chat)
+    .then((result) => {
+        response = {
+            success: result?.insertedId !== undefined,
+            insertedId: result?.insertedId ?? undefined,
+            message: result?.insertedId === undefined ? `An error occurred while creating chat` : `New chat has been created successfully`
+        };
+    }).catch(err => {
+        throw new Error(err?.errMsg);
+    })
+    .finally(() => {
+        chatsDB.close();
+    });
+
+    return response;
+}
+
+const fetchChatByCid = async (cid) => {
+    const chatsDB = getClient();
+    let response;
+    findChatByCid(chatsDB, cid)
+    .then((result) => {
+        response = {
+            success: result ? true : false,
+            chat: result,
+            message: result ? `Chat successfully found` : `Chat could not be found`
+        }
+    })
+    .catch(err => {
+        throw new Error(err);
+    })
+    .finally(() => {
+        chatsDB.close();
+    });
+
+    return response;
+}
+
+const fetchPreviousChats = async (usrId) => {
+    const chatsDB = getClient();
+    let response;
+    findPreviousChats(chatsDB, usrId)
+    .then((result) => {
+        response = {
+            success: result ? true : false,
+            results: [...result],
+            message: result ? `Previous chats have been found` : `Could not find previous chats for user ${usrId}`
+        }
+    }).catch(err => {
+        throw new Error(err);
+    })
+    .finally(() => {
+        chatsDB.close();
+    });
+
+    return response;
+}
+
+const updateMessages = async (cid, message) => {
+    const chatsDB = getClient();
+    let response;
+    updateChat(chatsDB, cid, message)
+    .then((result) => {
+        response = {
+            success: result.matchedCount === result.modifiedCount && result.modifiedCount > 0,
+            result: result,
+            message: (result.matchedCount === result.modifiedCount && result.modifiedCount > 0) ? 
+            `Message added to chat ${cid} successfully` : `Messages could not be added to chat ${cid}`
+        }
+    })
+    .catch(err => {
+        throw new Error(err);
+    })
+    .finally(() => {
+        chatsDB.close();
+    });
+
+    return response;
+}
+
+const getDatabases = async () => {
+    const chatsDB = getClient();
+    let response;
+    await showDatabases(chatsDB)
+    .then((results) => {
+        response = results.databases;
+    })
+    .catch(err => {
+        throw new Error(err);
+    })
+    .finally(() => {
+        chatsDB.close()
+    });
+
+    return response;
+}
+
+// async function run() {
+//     // NOTE this works and is how to call code
+//     const chatsDB = getClient();
+//     try {
+
+//         // await client.connect();
+
+//         // await listDatabases(client);
+//         // const res = await client.db('sample_mflix').collection('comments').insertOne();
+//         const collection = await chatsDB.getChatCollection();
+//         const res = await collection.insertOne({name: 'testing new', email: 'nonvalidemail@email.com', text: 'algweahe'});
+//         console.log(`res ${JSON.stringify(res)}`);
+
+//         console.log(`new listing created with id ${res.insertedId}`);
+
+//     } catch(e) {
+//         console.log(`[ERROR] ${e}`);
+//     }
+//      finally {
+//         // await client.close();
+//         await chatsDB.close();
+//     }
+// }
+
+
+// async function listDatabases(client) {
+//     const databaseList = await client.db().admin().listDatabases();
+//     console.log('databases');
+//     databaseList.databases.forEach(db => console.log(` - ${db.name}`));
+// }
+
+// run().catch(console.error);
+module.exports = {getDatabases, updateMessages, fetchPreviousChats, fetchChatByCid, createChat, testInsert};
