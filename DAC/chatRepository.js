@@ -23,7 +23,7 @@ const tstMethod = (client, database, collection, document) => {
             await client.connect();
             const result = await client.db(database).collection(collection).insertOne(document);
             // const result = await client.testDB(database, collection, document);
-            resolve(result?.databases);
+            resolve(result);
         } catch (err) {
             reject(new Error(err));
         } finally {
@@ -69,60 +69,67 @@ const showDatabases = async () => {
 
 }
 
-const insertChat = (client, chat) => {
+const insertChat = (clnt, chat) => {
     return new Promise(async (resolve, reject) => {
         try {
-            const collection = client.getChatCollection();
-            const result = await collection.insertOne(chat);
-
+            await clnt.connect();
+            const result = await (clnt.getChatCollection()).insertOne(chat);
             if (result?.insertedId !== undefined) {
                 resolve(result);
             } else {
                 reject(result);
             }
-        } catch(err) {
+        } catch (err) {
             reject(new Error(err));
+        } finally {
+            clnt.close();
         }
     });
 }
 
-const updateChat = (client, cid, message) => {
+const updateChat = (clnt, cid, message) => {
     return new Promise(async (resolve, reject) => {
         try {
-            const collection = client.getChatCollection();
-            const result = await collection.updateOne(
+            await clnt.connect();
+            const results = await (clnt.getChatCollection()).updateOne(
                 {_id: cid},
                 {$push: {messages: message}}
             );
             resolve(result);
-        } catch(err) {
+        } catch (err) {
             reject(new Error(err));
-        }
-    });
-}
-
-const findChatByCid = (client, cid) => {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const collection = client.getChatCollection();
-            const result = await collection.findOne({_id: cid});
-            resolve(result);
-        } catch(err) {
-            reject(new Error(err));
+        } finally {
+            clnt.close();
         }
     })
 }
 
-const findPreviousChats = async (client, usrId) => {
+const findChatByCid = (clnt, cid) => {
     return new Promise(async (resolve, reject) => {
         try {
-            const collection = client.getChatCollection();
-            const result = await collection.find({userId: usrId})
+            await clnt.connect();
+            const result = await (clnt.getChatCollection()).findOne({_id: cid});
             resolve(result);
         } catch(err) {
             reject(new Error(err));
+        } finally {
+            clnt.close();
         }
-    });
+    })
+}
+
+const findPreviousChats = (clnt, usrId) => {
+    return new Promise(async (resolve, reject) => {
+        try {
+            await clnt.connect();
+            const result = await (clnt.getChatCollection()).find({userId: usrId});
+            resolve(result);
+        } catch(err) {
+            reject(new Error(err));
+        } finally {
+            clnt.close();
+        }
+    })
 }
 
 const createChat = async (chat) => {
@@ -208,6 +215,13 @@ const updateMessages = async (cid, message) => {
     return response;
 }
 
+const tst2 = async () => {
+    const chatsDB = new clientDB();
+    await chatsDB.client.connect();
+    let result = await (chatsDB.getChatCollection()).insertOne({});
+    return result;
+}
+
 const getDatabases = async () => {
     const chatsDB = getClient();
     let response;
@@ -225,36 +239,4 @@ const getDatabases = async () => {
     return response;
 }
 
-// async function run() {
-//     // NOTE this works and is how to call code
-//     const chatsDB = getClient();
-//     try {
-
-//         // await client.connect();
-
-//         // await listDatabases(client);
-//         // const res = await client.db('sample_mflix').collection('comments').insertOne();
-//         const collection = await chatsDB.getChatCollection();
-//         const res = await collection.insertOne({name: 'testing new', email: 'nonvalidemail@email.com', text: 'algweahe'});
-//         console.log(`res ${JSON.stringify(res)}`);
-
-//         console.log(`new listing created with id ${res.insertedId}`);
-
-//     } catch(e) {
-//         console.log(`[ERROR] ${e}`);
-//     }
-//      finally {
-//         // await client.close();
-//         await chatsDB.close();
-//     }
-// }
-
-
-// async function listDatabases(client) {
-//     const databaseList = await client.db().admin().listDatabases();
-//     console.log('databases');
-//     databaseList.databases.forEach(db => console.log(` - ${db.name}`));
-// }
-
-// run().catch(console.error);
-module.exports = {getDatabases, updateMessages, fetchPreviousChats, fetchChatByCid, createChat, testInsert};
+module.exports = {getDatabases, updateMessages, fetchPreviousChats, fetchChatByCid, createChat, testInsert, tst2};

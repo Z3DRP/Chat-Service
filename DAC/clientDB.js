@@ -39,14 +39,12 @@ class clientDB {
     }
 
     async getChatCollection() {
-        await this.client.connect();
         // return this.client.db(process.env.DB).collection(process.env.CHAT_COLLECTION as string);
         //testing with smpl_mflx
-        return this.client.db('vba').collection('comments');
+        return this.client.db(process.env.DB).collection(process.env.CHAT_COLLECTION);
     }
 
     async getUserCollection() {
-        await this.client.connect();
         return this.client.db(process.env.DB).collection(process.env.USER_COLLECTION);
     }
 
