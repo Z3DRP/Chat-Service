@@ -1,18 +1,31 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
-const { testInsert, getDatabases, tst2 } = require('./DAC/chatRepository');
+const { testInsert, getDatabases, tst2, fetchChatByCid, fetchPreviousChats, updateMessages } = require('./DAC/chatRepository');
 const { default: OpenAI } = require('openai');
-const PORT = 443;
+const messageFactory = require('./utils/MessageFactory');
+const utils = require('./utils/utilities');
+const Chat = require('./Models/Chat');
 const service = express();
+const cookieParser = require('cookie-parser');
+const { http } = require('winston');
 service.use(cors());
 service.use(express.json());
+service.use(cookieParser());
+
+// TODO setup JWT and store userid in sub field, then unencode token and retrieve id
 
 const openai = new OpenAI({
     apiKey: process.env.OPAI_KEY
 });
 
-service.listen(PORT, () => console.log('Service is running...'));
+const setCookie = (key, value, request) => {
+    request.cookie(key, value, {expire: 120 * 60 * 1000, HttpOnly: true, secure: true});
+}
+
+const getCookie = (key, request) => request.cookie(key);
+
+service.listen(process.env.PORT, () => console.log('Service is running...'));
 
 service.get('/test/db', async (request, response) => {
     try {
@@ -57,19 +70,69 @@ service.get('/t/d', async (request, response) => {
     }
 })
 
-service.get('/chat/previous', async (req, res) => {
-    // try {
-        
+service.get('/chat/previous', async (request, response) => {
+    try {
+        let usrId = request.body.uid;
+        let result = await fetchPreviousChats(usrId);
+        response.json({
+            chats: [...result.results],
+            message: result.message,
+            success: result.success
+        });
 
-    // } catch (err) {
-    //     console.log(`[ERROR] ${err}`);
-    //     res.status(500).json({error: err.Error});
-    // }
+    } catch (err) {
+        console.log(`[ERROR] ${err}`);
+        res.status(500).json({error: err.Error});
+    }
 })
 
 service.post('/chat/message', async (request, response) => {
     try {
-        console.log('processing message');
+        const chatId = request.query.chatId;
+        let isPrevChat = request.body.isPrevChat;
+        let chat;
+
+        if (!isPrevChat) {
+            chat = new Chat(chatId, []);
+            chat.messages.push(messageFactory.createMessage('Message', utils.getSystemMessage()));
+        } else {
+            let chatCookie = getCookie(`current-${chatId}`, request);
+
+            if (chatCookie === undefined) {
+                let results = fetchChatByCid(chatId);
+                chat = results.success ? results.chat : new Chat(chatId, messageFactory.createMessage('Message', utils.getSystemMessage()));
+            }
+        }
+
+        let usrMsg = messageFactory.createMessage('AppMessage', {
+            id: request.body.id,
+            uid: request.body.uId,
+            creeationDate: request.body.creationDate,
+            body: request.body.body,
+            type: request.body.type
+        });
+
+        chat.messages.push(usrMsg);
+        // get chat out of session
+        const msgResponse = await openai.chat.completions.create({
+            messages: chat.messages,
+            model: 'gpt-3.5-turbo'
+        });
+
+        console.log(msgResponse.choices[0]);
+
+        let updateResults = updateMessages(chatId, [usrMsg, msgResponse]);
+
+        if (!updateResults.success) {
+            throw new Error(`An error occurred while updating chat:: ${updateResults.message}`);
+        }
+
+        setCookie(`current-${chatId}`, chat, request);
+        response.json({
+            success: updateResults.success,
+            message: updateResults.message,
+            chatCompletion: msgResponse
+        });
 
     } catch (err) {
         console.log(`[ERROR] ${err}`);

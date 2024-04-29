@@ -87,15 +87,15 @@ const insertChat = (clnt, chat) => {
     });
 }
 
-const updateChat = (clnt, cid, message) => {
+const updateChat = (clnt, cid, messages) => {
     return new Promise(async (resolve, reject) => {
         try {
             await clnt.connect();
             const results = await (clnt.getChatCollection()).updateOne(
                 {_id: cid},
-                {$push: {messages: message}}
+                {$push: {messages: {$each: messages}}}
             );
-            resolve(result);
+            resolve(results);
         } catch (err) {
             reject(new Error(err));
         } finally {
@@ -193,10 +193,10 @@ const fetchPreviousChats = async (usrId) => {
     return response;
 }
 
-const updateMessages = async (cid, message) => {
+const updateMessages = async (cid, messages) => {
     const chatsDB = getClient();
     let response;
-    updateChat(chatsDB, cid, message)
+    updateChat(chatsDB, cid, messages)
     .then((result) => {
         response = {
             success: result.matchedCount === result.modifiedCount && result.modifiedCount > 0,
