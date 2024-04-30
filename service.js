@@ -3,6 +3,8 @@ const cors = require('cors');
 require('dotenv').config();
 const { testInsert, getDatabases, tst2, fetchChatByCid, fetchPreviousChats, updateMessages } = require('./DAC/chatRepository');
 const { default: OpenAI } = require('openai');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const messageFactory = require('./utils/MessageFactory');
 const utils = require('./utils/utilities');
 const Chat = require('./Models/Chat');
@@ -12,6 +14,12 @@ const { http } = require('winston');
 service.use(cors());
 service.use(express.json());
 service.use(cookieParser());
+service.use(helmet());
+const limiter = rateLimit({
+    windowMs: 1 * 60 * 1000,
+    max: 25
+});
+service.use(limiter);
 
 // TODO setup JWT and store userid in sub field, then unencode token and retrieve id
 
@@ -116,7 +124,8 @@ service.post('/chat/message', async (request, response) => {
         // get chat out of session
         const msgResponse = await openai.chat.completions.create({
             messages: chat.messages,
-            model: 'gpt-3.5-turbo'
+            model: 'gpt-3.5-turbo',
+            max_tokens: 75
         });
 
         console.log(msgResponse.choices[0]);

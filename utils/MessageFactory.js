@@ -1,7 +1,6 @@
-const AppMessage = require('./Models/AppMessage');
-const Message = require('./Models/Message');
-const MessageDTO = require('./Models/MessageDTO');
-
+const AppMessage = require('../Models/AppMessage');
+const Message = require('../Models/Message.js');
+const MessageDTO = require('../Models/MessageDTO.js');
 const msg = {AppMessage, Message, MessageDTO};
 
 module.exports = {

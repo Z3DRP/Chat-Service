@@ -1,4 +1,4 @@
-class Message {
+module.exports = class Message {
     
     constructor({role, content}) {
         this.role = role;

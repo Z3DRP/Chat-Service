@@ -1,4 +1,4 @@
-class MessageDTO {
+module.exports = class MessageDTO {
     constuctor({id='', usrId, role, content, date}) {
         this.id = id;
         this.uId = usrId;
