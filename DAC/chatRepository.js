@@ -73,7 +73,7 @@ const insertChat = (clnt, chat) => {
     return new Promise(async (resolve, reject) => {
         try {
             await clnt.connect();
-            const result = await (clnt.getChatCollection()).insertOne(chat);
+            const result = await clnt.db(process.env.DB).collection(process.env.CHAT_COLLECTION).insertOne(chat);
             if (result?.insertedId !== undefined) {
                 resolve(result);
             } else {
@@ -91,7 +91,7 @@ const updateChat = (clnt, cid, messages) => {
     return new Promise(async (resolve, reject) => {
         try {
             await clnt.connect();
-            const results = await (clnt.getChatCollection()).updateOne(
+            const results = await clnt.db(process.env.DB).collection(process.env.CHAT_COLLECTION).updateOne(
                 {_id: cid},
                 {$push: {messages: {$each: messages}}}
             );
@@ -108,7 +108,7 @@ const findChatByCid = (clnt, cid) => {
     return new Promise(async (resolve, reject) => {
         try {
             await clnt.connect();
-            const result = await (clnt.getChatCollection()).findOne({_id: cid});
+            const result = await clnt.db(process.env.DB).collection(process.env.CHAT_COLLECTION).findOne({_id: cid});
             resolve(result);
         } catch(err) {
             reject(new Error(err));
@@ -122,7 +122,9 @@ const findPreviousChats = (clnt, usrId) => {
     return new Promise(async (resolve, reject) => {
         try {
             await clnt.connect();
-            const result = await (clnt.getChatCollection()).find({userId: usrId});
+            let id = parseInt(usrId);
+            const cursor = clnt.db(process.env.DB).collection(process.env.CHAT_COLLECTION).find({userId: id}).sort({creationDate: -1});
+            const result = await cursor.toArray();
             resolve(result);
         } catch(err) {
             reject(new Error(err));
@@ -144,9 +146,6 @@ const createChat = async (chat) => {
         };
     }).catch(err => {
         throw new Error(err?.errMsg);
-    })
-    .finally(() => {
-        chatsDB.close();
     });
 
     return response;
@@ -165,9 +164,6 @@ const fetchChatByCid = async (cid) => {
     })
     .catch(err => {
         throw new Error(err);
-    })
-    .finally(() => {
-        chatsDB.close();
     });
 
     return response;
@@ -176,7 +172,7 @@ const fetchChatByCid = async (cid) => {
 const fetchPreviousChats = async (usrId) => {
     const chatsDB = getClient();
     let response;
-    findPreviousChats(chatsDB, usrId)
+    await findPreviousChats(chatsDB, usrId)
     .then((result) => {
         response = {
             success: result ? true : false,
@@ -185,9 +181,6 @@ const fetchPreviousChats = async (usrId) => {
         }
     }).catch(err => {
         throw new Error(err);
-    })
-    .finally(() => {
-        chatsDB.close();
     });
 
     return response;
@@ -207,9 +200,6 @@ const updateMessages = async (cid, messages) => {
     })
     .catch(err => {
         throw new Error(err);
-    })
-    .finally(() => {
-        chatsDB.close();
     });
 
     return response;

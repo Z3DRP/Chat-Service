@@ -1,4 +1,6 @@
 const express = require('express');
+const https = require('https');
+const fs = require('fs');
 const cors = require('cors');
 require('dotenv').config();
 const { testInsert, getDatabases, tst2, fetchChatByCid, fetchPreviousChats, updateMessages } = require('./DAC/chatRepository');
@@ -6,6 +8,7 @@ const { default: OpenAI } = require('openai');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const messageFactory = require('./utils/MessageFactory');
+const ChatAdapter = require('./utils/ChatAdapter');
 const utils = require('./utils/utilities');
 const Chat = require('./Models/Chat');
 const service = express();
@@ -15,6 +18,8 @@ service.use(cors());
 service.use(express.json());
 service.use(cookieParser());
 service.use(helmet());
+
+
 const limiter = rateLimit({
     windowMs: 1 * 60 * 1000,
     max: 25
@@ -80,10 +85,10 @@ service.get('/t/d', async (request, response) => {
 
 service.get('/chat/previous', async (request, response) => {
     try {
-        let usrId = request.body.uid;
+        let usrId = request.query.uid;
         let result = await fetchPreviousChats(usrId);
         response.json({
-            chats: [...result.results],
+            chats: [...ChatAdapter.convertToAppChats(result.results)],
             message: result.message,
             success: result.success
         });

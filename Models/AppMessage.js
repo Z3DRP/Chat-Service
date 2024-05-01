@@ -6,32 +6,4 @@ module.exports = class AppMessage extends Message {
         this.userId = uid;
         this.date = creationDate;
     }
-
-    set messageDate(value) {
-        this.date = value;
-    }
-
-    get messageDate() {
-        return this.date;
-    }
-
-    get formattedDate() {
-        return this.date.toISOString();
-    }
-
-    set messageId(value) {
-        this.id = value;
-    }
-
-    get messageId() {
-        return this.id;
-    }
-
-    set userId(value) {
-        this.userId = value;
-    }
-
-    get userId() {
-        return this.userId;
-    }
 }
