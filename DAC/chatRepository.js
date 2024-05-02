@@ -69,7 +69,7 @@ const showDatabases = async () => {
 
 }
 
-const insertChat = (clnt, chat) => {
+const createChat = (clnt, chat) => {
     return new Promise(async (resolve, reject) => {
         try {
             await clnt.connect();
@@ -81,8 +81,6 @@ const insertChat = (clnt, chat) => {
             }
         } catch (err) {
             reject(new Error(err));
-        } finally {
-            clnt.close();
         }
     });
 }
@@ -134,21 +132,21 @@ const findPreviousChats = (clnt, usrId) => {
     })
 }
 
-const createChat = async (chat) => {
-    const chatsDB = getClient();
-    let response;
-    insertChat(chatsDB, chat)
-    .then((result) => {
-        response = {
-            success: result?.insertedId !== undefined,
-            insertedId: result?.insertedId ?? undefined,
-            message: result?.insertedId === undefined ? `An error occurred while creating chat` : `New chat has been created successfully`
+const insertChat = async (chat) => {
+    try {
+        const client = getClient();
+        await client.connect();
+        const results = await client.db(process.env.db).collection(process.env.CHAT_COLLECTION).insertOne(chat);
+        let response = {
+            success: results?.insertedId !== undefined,
+            insertedId: results?.insertedId ?? undefined,
+            message: results?.insertedId === undefined ? 'An error occurred while creating chat' : 'New chat created successfully'
         };
-    }).catch(err => {
-        throw new Error(err?.errMsg);
-    });
-
-    return response;
+        client.close();
+        return response;
+    } catch(err) {
+        throw new Error(err);
+    }
 }
 
 const fetchChatByCid = async (cid) => {
@@ -229,4 +227,4 @@ const getDatabases = async () => {
     return response;
 }
 
-module.exports = {getDatabases, updateMessages, fetchPreviousChats, fetchChatByCid, createChat, testInsert, tst2};
+module.exports = {getDatabases, updateMessages, insertChat, fetchPreviousChats, fetchChatByCid, insertChat, testInsert, tst2};

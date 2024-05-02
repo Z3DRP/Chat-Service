@@ -1,9 +1,10 @@
 const Message = require('./Message');
-module.exports = class AppMessage extends Message {
+module.exports = class AppMessage {
     constructor ({id='', uid, creationDate, body, type}) {
-        super(type, body);
-        this.id = id;
+        this._id = id;
         this.userId = uid;
         this.date = creationDate;
+        this.body = body;
+        this.type = type;
     }
 }

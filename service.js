@@ -3,7 +3,7 @@ const https = require('https');
 const fs = require('fs');
 const cors = require('cors');
 require('dotenv').config();
-const { testInsert, getDatabases, tst2, fetchChatByCid, fetchPreviousChats, updateMessages } = require('./DAC/chatRepository');
+const { testInsert, getDatabases, tst2, fetchChatByCid, fetchPreviousChats, updateMessages, insertChat } = require('./DAC/chatRepository');
 const { default: OpenAI } = require('openai');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -14,7 +14,9 @@ const Chat = require('./Models/Chat');
 const service = express();
 const cookieParser = require('cookie-parser');
 const { http } = require('winston');
-service.use(cors());
+const IdFactory = require('./utils/IdFactory');
+const ChatFactory = require('./utils/ChatFactory');
+service.use(cors({credentials: true}));
 service.use(express.json());
 service.use(cookieParser());
 service.use(helmet());
@@ -32,11 +34,11 @@ const openai = new OpenAI({
     apiKey: process.env.OPAI_KEY
 });
 
-const setCookie = (key, value, request) => {
-    request.cookie(key, value, {expire: 120 * 60 * 1000, HttpOnly: true, secure: true});
+const setCookie = (key, value, res) => {
+    res.cookie(key, value, {expire: 120 * 60 * 1000, HttpOnly: true, secure: true});
 }
 
-const getCookie = (key, request) => request.cookie(key);
+const getCookie = (key, res) => res.cookie(key);
 
 service.listen(process.env.PORT, () => console.log('Service is running...'));
 
@@ -101,15 +103,32 @@ service.get('/chat/previous', async (request, response) => {
 
 service.post('/chat/message', async (request, response) => {
     try {
-        const chatId = request.query.chatId;
+        const chatId = request.body.chatId;
         let isPrevChat = request.body.isPrevChat;
         let chat;
 
         if (!isPrevChat) {
-            chat = new Chat(chatId, []);
+            let msg = {...request?.body?.message?.body.split(' ')};
+            let msgLength = Object.keys(msg).length;
+            let descriptionLimit = msgLength >= 7 ? 7 : 3;
+            let msgDescription = '';
+            for (let key of Object.keys(msg)) {
+                if (key < descriptionLimit) {
+                    msgDescription += ` ${msg[key]}`;
+                } else {
+                    break;
+                }
+            }
+            chat = ChatFactory.createChat('AppChat', {
+                id: chatId,
+                usrId: request?.body?.message?.uId,
+                dtArg: new Date(),
+                message: [],
+                descrp: `${msgDescription.trim()}...`
+            });
             chat.messages.push(messageFactory.createMessage('Message', utils.getSystemMessage()));
         } else {
-            let chatCookie = getCookie(`current-${chatId}`, request);
+            let chatCookie = getCookie(`current-${chatId}`, response);
 
             if (chatCookie === undefined) {
                 let results = fetchChatByCid(chatId);
@@ -117,34 +136,70 @@ service.post('/chat/message', async (request, response) => {
             }
         }
 
-        let usrMsg = messageFactory.createMessage('AppMessage', {
-            id: request.body.id,
-            uid: request.body.uId,
-            creeationDate: request.body.creationDate,
-            body: request.body.body,
-            type: request.body.type
+        let usrMsgDTO = messageFactory.createMessage('MessageDTO', {
+            id: request?.body?.message?._id,
+            uId: request?.body?.message?.uId,
+            type: request?.body?.message?.type,
+            creationDate: request?.body?.message?.creationDate,
+            body: request?.body?.message?.body,
         });
 
-        chat.messages.push(usrMsg);
+        let usrMsg = messageFactory.createMessage('Message', {
+            role: usrMsgDTO?.type,
+            content: usrMsgDTO?.body
+        });
+        
+        chat?.messages.push(usrMsg);
         // get chat out of session
-        const msgResponse = await openai.chat.completions.create({
-            messages: chat.messages,
-            model: 'gpt-3.5-turbo',
-            max_tokens: 75
-        });
+        // const result = await openai.chat.completions.create({
+        //     messages: chat.messages,
+        //     model: 'gpt-3.5-turbo',
+        //     max_tokens: 75
+        // });
+        // console.log(result.choices[0]);
 
-        console.log(msgResponse.choices[0]);
+        let result = {
+            choices: [
+                {
+                    message: {
+                        role: 'assistant',
+                        content: 'Certainly! Here is a short eviction notice for Tito Walls:\n\nDear Tito Walls, Please be advised that you are being evicted from the property located at [property address] due to [reason for eviction]. You are required to vacate the premises by [date]. Failure to do so will result in further legal action. Sincerely, [Your Name/Property Manager'
+                    }
+                }
+            ]
+        };
 
-        let updateResults = updateMessages(chatId, [usrMsg, msgResponse]);
-
-        if (!updateResults.success) {
-            throw new Error(`An error occurred while updating chat:: ${updateResults.message}`);
+        if (result === undefined || result?.choices === undefined) {
+            throw new Error('An unexpected error occurred while getting chatbot response.');
         }
 
-        setCookie(`current-${chatId}`, chat, request);
+        let msgResponse = messageFactory.createMessage('MessageDTO', {
+            id: IdFactory.generateId('message'),
+            uId: IdFactory.generateId('assistant'),
+            type: result?.choices[0]?.message?.role,
+            creationDate: new Date(),
+            body: result.choices[0]?.message?.content,
+        });
+
+        let results = isPrevChat ? await updateMessages(chatId, [usrMsg, msgResponse]) : await insertChat(ChatFactory.createChat('AppChat', {
+            id: chat._id,
+            usrId: chat.userId,
+            dtArg: chat.chatDate,
+            messages: [chat.messages[0], usrMsgDTO, msgResponse],
+            descrp: chat.description
+        }));
+
+        chat?.messages.push(messageFactory.createMessage('Message', {
+            role: msgResponse?.type,
+            content: msgResponse?.body
+        }));
+
+        setCookie(`current-${chatId}`, chat, response);
+        console.log(response.cookies());
+        console.log(response.cookie(`current-${chatId}`));
         response.json({
-            success: updateResults.success,
-            message: updateResults.message,
+            success: results?.success,
+            message: results?.message,
             chatCompletion: msgResponse
         });
 
