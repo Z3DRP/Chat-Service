@@ -85,21 +85,24 @@ const createChat = (clnt, chat) => {
     });
 }
 
-const updateChat = (clnt, cid, messages) => {
-    return new Promise(async (resolve, reject) => {
-        try {
-            await clnt.connect();
-            const results = await clnt.db(process.env.DB).collection(process.env.CHAT_COLLECTION).updateOne(
-                {_id: cid},
-                {$push: {messages: {$each: messages}}}
-            );
-            resolve(results);
-        } catch (err) {
-            reject(new Error(err));
-        } finally {
-            clnt.close();
+const updateChat = async (cid, msgs) => {
+    try {
+        const client = getClient();
+        await client.connect();
+        const results = await client.db(process.env.DB).collection(process.env.CHAT_COLLECTION).updateOne(
+            {_id: cid},
+            {$push: {messages: {$each: msgs}}}
+        );
+        let response = {
+            success: results.matchedCount === results.modifiedCount && results.modifiedCount > 0,
+            message: (results.matchedCount === results.modifiedCount && results.modifiedCount > 0) ? 
+            `Message added to chat ${cid} successfully` : `Messages could not be added to chat ${cid}`
         }
-    })
+        client.close();
+        return response;
+    } catch (err) {
+
+    }
 }
 
 const findChatByCid = (clnt, cid) => {
@@ -132,22 +135,6 @@ const findPreviousChats = (clnt, usrId) => {
     })
 }
 
-const insertChat = async (chat) => {
-    try {
-        const client = getClient();
-        await client.connect();
-        const results = await client.db(process.env.db).collection(process.env.CHAT_COLLECTION).insertOne(chat);
-        let response = {
-            success: results?.insertedId !== undefined,
-            insertedId: results?.insertedId ?? undefined,
-            message: results?.insertedId === undefined ? 'An error occurred while creating chat' : 'New chat created successfully'
-        };
-        client.close();
-        return response;
-    } catch(err) {
-        throw new Error(err);
-    }
-}
 
 const fetchChatByCid = async (cid) => {
     const chatsDB = getClient();
@@ -184,30 +171,29 @@ const fetchPreviousChats = async (usrId) => {
     return response;
 }
 
-const updateMessages = async (cid, messages) => {
+const tst2 = async () => {
     const chatsDB = getClient();
-    let response;
-    updateChat(chatsDB, cid, messages)
-    .then((result) => {
-        response = {
-            success: result.matchedCount === result.modifiedCount && result.modifiedCount > 0,
-            result: result,
-            message: (result.matchedCount === result.modifiedCount && result.modifiedCount > 0) ? 
-            `Message added to chat ${cid} successfully` : `Messages could not be added to chat ${cid}`
-        }
-    })
-    .catch(err => {
-        throw new Error(err);
-    });
-
-    return response;
+    await chatsDB.connect();
+    let result = await chatsDB.db(process.env.DB).collection(process.env.CHAT_COLLECTION).insertOne({id: 31, name: 'tasdest'});
+    chatsDB.close();
+    return result;
 }
 
-const tst2 = async () => {
-    const chatsDB = new clientDB();
-    await chatsDB.client.connect();
-    let result = await (chatsDB.getChatCollection()).insertOne({});
-    return result;
+const insertChat = async (chat) => {
+    try {
+        const client = getClient();
+        await client.connect();
+        let result = await client.db(process.env.DB).collection(process.env.CHAT_COLLECTION).insertOne(chat);
+        let response = {
+            success: result?.insertedId !== undefined,
+            id: result?.insertedId ?? undefined,
+            message: result?.insertedId === undefined ? 'An error occurred while inserting chat' : 'New chat created successfully'
+        }
+        client.close();
+        return response;
+    } catch (err) {
+        throw new Error(err);
+    }
 }
 
 const getDatabases = async () => {
@@ -227,4 +213,4 @@ const getDatabases = async () => {
     return response;
 }
 
-module.exports = {getDatabases, updateMessages, insertChat, fetchPreviousChats, fetchChatByCid, insertChat, testInsert, tst2};
+module.exports = {getDatabases, insertChat, fetchPreviousChats, fetchChatByCid, updateChat, testInsert, tst2};

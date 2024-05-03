@@ -1,6 +1,7 @@
 
 module.exports = class AppChat {
     _id;
+    userId;
     chatDate;
     messages = [];
     description;

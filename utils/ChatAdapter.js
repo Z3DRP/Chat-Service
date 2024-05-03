@@ -8,7 +8,7 @@ module.exports = {
                 'AppChat',
                 {
                     id: chat._id.toString(),
-                    dtArg: chat?.creationDate,
+                    dtArg: chat?.chatDate,
                     messages: chat?.messages ?? [],
                     descrp: chat?.description
                 }
