@@ -123,6 +123,7 @@ service.post('/chat/message', async (request, response) => {
         } else {
             let prevMsgs = request?.body?.prevMessages;
             // add system message to retrieved list so chatbot has context
+            prevMsgs = messageFactory.createMessageDTOs(prevMsgs);
             prevMsgs.unshift(messageFactory.createMessage('Message', utils.getSystemMessage()))
             chat = ChatFactory.createChat('AppChat', {
                 id: chatId,

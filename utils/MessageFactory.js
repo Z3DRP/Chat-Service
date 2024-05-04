@@ -7,5 +7,15 @@ module.exports = {
     createMessage(type, attributes) {
         const MsgType = msg[type];
         return new MsgType(attributes);
+    },
+    createMessageDTOs(msgs) {
+        let results = [];
+        for (let msg of msgs) {
+            results.push(this.createMessage('Message', {
+                role: msg?.type,
+                content: msg?.body
+            }));
+        }
+        return results;
     }
 };
